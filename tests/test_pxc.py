@@ -37,3 +37,29 @@ def test_plain_json_project(tmp_path):
 def test_summary_lists_tree_export():
     s = Project(SAMPLES / "Tree.pxc").summary()
     assert any(n["type"] == "Node_Export" for n in s["nodes"])
+
+
+def make_plain(tmp_path):
+    p = tmp_path / "graph.pxc"
+    p.write_text(json.dumps({"nodes": [
+        {"id": "a", "iname": "Blur1", "name": "Blur", "type": "Node_Blur", "inputs": [{"r": {"d": -4}}, {"r": {"d": 2}}]},
+        {"id": "b", "iname": "Shape1", "name": "Shape", "type": "Node_Shape", "inputs": [], "outputs": [{}]},
+    ]}))
+    return Project(p)
+
+
+def test_connect_and_disconnect(tmp_path):
+    proj = make_plain(tmp_path)
+    r = proj.connect("Shape1", 0, "Blur1", 1)
+    assert r == {"from": "b", "from_index": 0, "to": "a", "in_index": 1}
+    inp = proj.find("a")["inputs"][1]
+    assert inp["from_node"] == "b" and inp["from_index"] == 0
+    proj.disconnect("a", 1)
+    assert "from_node" not in proj.find("a")["inputs"][1]
+    proj.set_input("a", 1, 3)  # allowed again once unlinked
+
+
+def test_connect_pads_inputs(tmp_path):
+    proj = make_plain(tmp_path)
+    proj.connect("b", 0, "a", 5)
+    assert len(proj.find("a")["inputs"]) == 6

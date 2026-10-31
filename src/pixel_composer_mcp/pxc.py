@@ -79,12 +79,27 @@ class Project:
         return {"path": str(self.path), "version": self.data.get("version"),
                 "node_count": len(out), "nodes": out}
 
-    def set_input(self, ref: str, index: int, value) -> dict:
+    def _input(self, ref: str, index: int) -> tuple[dict, dict]:
         node = self.find(ref)
         inputs = node.setdefault("inputs", [])
         while len(inputs) <= index:
             inputs.append({})
-        inp = inputs[index]
+        return node, inputs[index]
+
+    def connect(self, src: str, out_index: int, dst: str, in_index: int) -> dict:
+        s = self.find(src)
+        d, inp = self._input(dst, in_index)
+        inp["from_node"], inp["from_index"] = s["id"], out_index
+        return {"from": s["id"], "from_index": out_index, "to": d["id"], "in_index": in_index}
+
+    def disconnect(self, dst: str, in_index: int) -> dict:
+        d, inp = self._input(dst, in_index)
+        was = inp.pop("from_node", None)
+        inp.pop("from_index", None)
+        return {"node": d["id"], "in_index": in_index, "was_from": was}
+
+    def set_input(self, ref: str, index: int, value) -> dict:
+        node, inp = self._input(ref, index)
         if inp.get("from_node"):
             # A linked input ignores its stored value, so a silent write would do nothing.
             raise ValueError(f"input {index} of {ref} is driven by a connection; edit the source node instead")
