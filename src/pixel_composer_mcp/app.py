@@ -26,6 +26,9 @@ INSTALL_DIR = Path(os.environ.get("PXC_DIR", r"C:\Program Files (x86)\Steam\stea
 DATA_DIR = Path(os.environ.get("PXC_DATA_DIR") or Path(os.environ.get("LOCALAPPDATA", "")) / "PixelComposer")
 PORT = int(os.environ.get("PXC_TERMINAL_PORT", "22400"))
 STEAM_APP_ID = "2299510"
+# The addon drops whatever follows roughly the first 490 payload bytes of a frame (measured on
+# 1.22.0.5), so commands are packed into frames well under that.
+MAX_FRAME = 400
 ADDON = "Remote Terminal"
 
 READY = "Entering main loop."
@@ -78,19 +81,35 @@ def app_running() -> bool:
     return "PixelComposer.exe" in out
 
 
+def _frames(command: str) -> list[bytes]:
+    """Pack lines into payloads of at most MAX_FRAME bytes, never splitting a line."""
+    out, cur = [], b""
+    for line in command.encode().split(b"\n"):
+        if len(line) > MAX_FRAME:
+            raise PxcError(f"command line too long ({len(line)} bytes, max {MAX_FRAME}): {line[:60]!r}...")
+        if cur and len(cur) + 1 + len(line) > MAX_FRAME:
+            out.append(cur)
+            cur = line
+        else:
+            cur = cur + b"\n" + line if cur else line
+    return out + [cur]
+
+
 def ws_send(command: str) -> None:
-    """One-shot WebSocket text frame. The addon never replies; results only show in app stdout."""
+    """Send console commands as WebSocket text frames. The addon never replies; results only
+    show in app stdout. Multi-line commands run line by line, in order."""
+    frames = _frames(command)
     with socket.create_connection(("127.0.0.1", PORT), timeout=5) as s:
         key = base64.b64encode(os.urandom(16)).decode()
         s.sendall((f"GET / HTTP/1.1\r\nHost: 127.0.0.1:{PORT}\r\nUpgrade: websocket\r\n"
                    f"Connection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n").encode())
         if b" 101 " not in s.recv(1024).split(b"\r\n", 1)[0]:
             raise PxcError("Remote Terminal refused the WebSocket handshake")
-        data, mask = command.encode(), os.urandom(4)
-        n = len(data)
-        head = bytes([0x81]) + (bytes([0x80 | n]) if n < 126 else bytes([0x80 | 126]) + struct.pack(">H", n))
-        s.sendall(head + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(data)))
-        time.sleep(0.3)  # let the frame land before the close handshake
+        for data in frames:
+            mask, n = os.urandom(4), len(data)
+            head = bytes([0x81]) + (bytes([0x80 | n]) if n < 126 else bytes([0x80 | 126]) + struct.pack(">H", n))
+            s.sendall(head + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(data)))
+            time.sleep(0.3)  # one frame per app network event; also lets the last land before close
 
 
 class Instance:
