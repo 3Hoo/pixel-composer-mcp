@@ -67,7 +67,7 @@
     "override_instance": false
    },
    "r": {
-    "d": 2
+    "d": 0
    },
    "def_val": 0,
    "unit": 0,
@@ -154,7 +154,7 @@
     "unit": 1
    },
    "r": {
-    "d": 30
+    "d": 1
    },
    "def_val": 1,
    "unit": 0,
@@ -227,8 +227,8 @@
    },
    "r": {
     "d": [
-     1,
-     30
+     0,
+     -1
     ]
    },
    "def_val": [
@@ -352,7 +352,7 @@
     "override_instance": false
    },
    "r": {
-    "d": 8
+    "d": 1
    },
    "def_val": 1,
    "unit": 0,

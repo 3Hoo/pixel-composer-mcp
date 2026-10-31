@@ -73,3 +73,12 @@ def test_add_export_node_from_template(tmp_path):
     assert node["inputs"][1]["r"]["d"] == "C:/out/fx.png"
     assert "from_node" not in node["inputs"][0]
     assert proj.add_export_node(0, 0, "") != nid  # ids stay unique
+
+
+def test_export_template_uses_node_defaults(tmp_path):
+    # The template came from a sample whose Export had scale 8 and GIF settings; a new node must not.
+    proj = make_plain(tmp_path)
+    node = proj.find(proj.add_export_node(0, 0, ""))
+    for i, inp in enumerate(node["inputs"][2:], start=2):
+        if "def_val" in inp and "r" in inp:
+            assert inp["r"]["d"] == inp["def_val"], f"input {i}"
