@@ -9,6 +9,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from . import app
 from .nodesrc import describe_node as describe_node_src
 from .pxc import Project
+from .sheetcheck import check_sheet as check_sheet_impl
 
 mcp = MCPServer(
     "pixel-composer",
@@ -138,6 +139,15 @@ def status() -> dict:
 def close() -> str:
     """Quit Pixel Composer if this server launched it."""
     return inst.close()
+
+
+@tool
+def check_sheet(path: str, style: str, frame_w: int = 128, frame_h: int = 160, ground_y: int = 144) -> dict:
+    """Check an effect sprite sheet (style 'pixel' or 'illust') against the frame/size/palette rules.
+    Also writes <sheet>_contact.png, a 2x nearest-neighbour preview to look at."""
+    if style not in ("pixel", "illust"):
+        raise ValueError("style must be 'pixel' or 'illust'")
+    return check_sheet_impl(path, style, frame_w, frame_h, ground_y)  # type: ignore[arg-type]
 
 
 def main() -> None:

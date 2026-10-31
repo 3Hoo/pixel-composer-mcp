@@ -26,6 +26,7 @@ MCP server that lets an agent drive [Pixel Composer](https://github.com/Ttanasar
 | `connect(src, out_index, dst, in_index)` / `disconnect(dst, in_index)` | wire / unwire nodes in the file, then reload |
 | `save()` | save the app's open project back to the `.pxc` |
 | `describe_node(node_type)` | input/output names by index, read from a Pixel Composer source clone (`PXC_SOURCE`) |
+| `check_sheet(path, style)` | pass/fail a sprite sheet against frame count, size, ground line, palette; writes a 2x contact preview |
 | `export(timeout=180)` | run every Export node, wait until outputs stop changing, return file paths |
 | `run_command(command)` | raw console command, e.g. `set <global> <value>` or `<gml_function> arg1 arg2` |
 | `status()` / `close()` | mode, project, log tail / quit the app (only if this server launched it) |
