@@ -1,0 +1,24 @@
+[project]
+name = "pixel-composer-mcp"
+version = "0.1.0"
+description = "MCP server for driving Pixel Composer through its Remote Terminal addon"
+readme = "README.md"
+authors = [
+    { name = "3Hoo", email = "3ho.ent@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "mcp>=2.3.0",
+]
+
+[project.scripts]
+pixel-composer-mcp = "pixel_composer_mcp:main"
+
+[build-system]
+requires = ["uv_build>=0.13.5,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
