@@ -40,6 +40,16 @@ class PxcError(RuntimeError):
     pass
 
 
+# Node types whose manual creation opens a modal file dialog (Node_create_* checks NODE_NEW_MANUAL),
+# blocking the app's main loop. Node_Export is handled separately via a JSON template.
+DIALOG_NODES = frozenset({
+    "Node_3D_Json", "Node_3D_Obj", "Node_ASE_File_Read", "Node_CSV_File_Read", "Node_Display_Image",
+    "Node_Image", "Node_Image_Animated", "Node_Image_Sequence", "Node_Image_gif", "Node_Image_mp4",
+    "Node_Json_File_Read", "Node_Krita_File_Read", "Node_ORA_File_Read", "Node_PXC", "Node_Text_File_Read",
+    "Node_WAV_File_Read", "Node_XML_File_Read",
+})
+
+
 def ensure_addon() -> bool:
     """Make Remote Terminal start with the app; merge, never overwrite other addons.
 
@@ -221,6 +231,17 @@ class Instance:
         return {"saved": str(self.project)}
 
     def add_node(self, node_type: str, x: int = 0, y: int = 0) -> dict:
+        if node_type in DIALOG_NODES:
+            raise PxcError(f"{node_type} opens a file dialog when created and would freeze the app; "
+                           "add it in the Pixel Composer window instead")
+        if node_type == "Node_Export":
+            self.save()
+            assert self.project is not None
+            proj = Project(self.project)
+            nid = proj.add_export_node(int(x), int(y), "")
+            proj.save()
+            self.open(self.project)
+            return {"type": node_type, "id": nid, "iname": proj.find(nid)["iname"]}
         self.save()
         assert self.project is not None  # save() raised otherwise
         before = {n["id"] for n in Project(self.project).nodes()}

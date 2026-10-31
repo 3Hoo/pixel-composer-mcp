@@ -8,8 +8,11 @@ Older or hand-written files may be bare JSON; the app accepts both.
 
 import json
 import struct
+import uuid
 import zlib
 from pathlib import Path
+
+EXPORT_TEMPLATE = Path(__file__).with_name("templates") / "export_node.json"
 
 
 class Project:
@@ -106,6 +109,19 @@ class Project:
         old = (inp.get("r") or {}).get("d")
         inp.setdefault("r", {})["d"] = value
         return {"node": node["id"], "index": index, "old": old, "new": value}
+
+    def add_export_node(self, x: int, y: int, path: str) -> str:
+        """Add an Export node from a bundled template (no app involved).
+
+        The app can't create one via nodeBuild: manual creation opens a modal save dialog.
+        """
+        node = json.loads(EXPORT_TEMPLATE.read_text(encoding="utf-8"))
+        node["id"] = "mcpexport" + uuid.uuid4().hex[:23]
+        node["iname"] = f"Export_{node['id'][-6:]}"
+        node["x"], node["y"] = x, y
+        node["inputs"][1]["r"]["d"] = path
+        self.data.setdefault("nodes", []).append(node)
+        return node["id"]
 
     def export_nodes(self) -> list[dict]:
         return [n for n in self.nodes() if n.get("type") == "Node_Export"]

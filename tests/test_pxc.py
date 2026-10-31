@@ -63,3 +63,13 @@ def test_connect_pads_inputs(tmp_path):
     proj = make_plain(tmp_path)
     proj.connect("b", 0, "a", 5)
     assert len(proj.find("a")["inputs"]) == 6
+
+
+def test_add_export_node_from_template(tmp_path):
+    proj = make_plain(tmp_path)
+    nid = proj.add_export_node(320, 64, "C:/out/fx.png")
+    node = proj.find(nid)
+    assert node["type"] == "Node_Export" and (node["x"], node["y"]) == (320, 64)
+    assert node["inputs"][1]["r"]["d"] == "C:/out/fx.png"
+    assert "from_node" not in node["inputs"][0]
+    assert proj.add_export_node(0, 0, "") != nid  # ids stay unique
