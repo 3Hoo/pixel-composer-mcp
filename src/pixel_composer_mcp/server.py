@@ -1,8 +1,13 @@
+import functools
+import os
+from pathlib import Path
 from typing import Any
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 
 from . import app
+from .nodesrc import describe_node as describe_node_src
 from .pxc import Project
 
 mcp = MCPServer(
@@ -10,11 +15,27 @@ mcp = MCPServer(
     instructions=(
         "Controls Pixel Composer (node-based pixel-art/VFX tool) through its Remote Terminal addon. "
         "Typical loop: open_project -> inspect_project -> set_input (auto-reloads) -> export. "
+        "Build graphs with add_node / connect; look up what an input index means with describe_node. "
         "Input values are positional (index); names are not stored in .pxc files. "
         "export renders every Export node in the project and returns the written files."
     ),
 )
 inst = app.Instance()
+
+
+def tool(fn):
+    """Register fn as a tool; anticipated failures go to the client with their message.
+
+    The SDK treats any other exception as a crash and replaces the message with a generic one,
+    which hides things like an unknown node type or a missing file from the agent.
+    """
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except (app.PxcError, KeyError, ValueError, OSError) as e:
+            raise ToolError(str(e)) from e
+    return mcp.tool()(wrapper)
 
 
 def _project(path: str | None) -> Project:
@@ -25,52 +46,95 @@ def _project(path: str | None) -> Project:
     return Project(inst.project)
 
 
-@mcp.tool()
+@tool
 def open_project(path: str) -> dict:
     """Open a .pxc in Pixel Composer, launching the app if needed (a window will appear)."""
     return inst.open(path)
 
 
-@mcp.tool()
+@tool
 def inspect_project(path: str | None = None) -> dict:
     """List nodes with their type, stored input values (by index) and connections. Reads the file, not the app."""
     return _project(path).summary()
 
 
-@mcp.tool()
+def _edit(path: str | None, reload: bool, fn) -> dict:
+    """Apply fn(Project) to the file. For the open project, save the app first (so unsaved
+    in-app changes survive) and reload afterwards (so the app sees the edit)."""
+    target = Path(path).resolve() if path else inst.project
+    is_open = target is not None and inst.project is not None and target == inst.project.resolve()
+    if is_open:
+        inst.save()
+    proj = _project(str(target) if target else None)
+    change = fn(proj)
+    proj.save()
+    if is_open and reload:
+        change["reload"] = inst.open(proj.path)
+    return change
+
+
+@tool
 def set_input(node: str, index: int, value: Any, path: str | None = None, reload: bool = True) -> dict:
     """Set a node input's static value in the .pxc file (node = id, iname or name).
 
     Reloads it in the app when it is the open project, so a following export uses the new value.
     """
-    proj = _project(path)
-    change = proj.set_input(node, index, value)
-    proj.save()
-    if reload and inst.project is not None and proj.path.resolve() == inst.project.resolve():
-        change["reload"] = inst.open(proj.path)
-    return change
+    return _edit(path, reload, lambda p: p.set_input(node, index, value))
 
 
-@mcp.tool()
+@tool
+def connect(src: str, out_index: int, dst: str, in_index: int, path: str | None = None) -> dict:
+    """Wire output `out_index` of node `src` into input `in_index` of node `dst`, then reload."""
+    return _edit(path, True, lambda p: p.connect(src, out_index, dst, in_index))
+
+
+@tool
+def disconnect(dst: str, in_index: int, path: str | None = None) -> dict:
+    """Remove the connection feeding input `in_index` of node `dst`, then reload."""
+    return _edit(path, True, lambda p: p.disconnect(dst, in_index))
+
+
+@tool
+def add_node(node_type: str, x: int = 0, y: int = 0) -> dict:
+    """Create a node (e.g. 'Node_Particle') in the open project via the app, save, return its id."""
+    return inst.add_node(node_type, x, y)
+
+
+@tool
+def save() -> dict:
+    """Save the open project from the app back to its .pxc file."""
+    return inst.save()
+
+
+@tool
+def describe_node(node_type: str) -> dict:
+    """Input/output names by index for a node type, from the Pixel Composer source clone in PXC_SOURCE."""
+    src = os.environ.get("PXC_SOURCE")
+    if not src:
+        raise app.PxcError("set PXC_SOURCE to a clone of https://github.com/Ttanasart-pt/Pixel-Composer")
+    return describe_node_src(node_type, Path(src))
+
+
+@tool
 def export(timeout: float = 180) -> dict:
     """Run every Export node of the open project and wait until the output files stop changing."""
     return inst.export(timeout=timeout)
 
 
-@mcp.tool()
+@tool
 def run_command(command: str, wait: float = 1.0) -> list[str]:
     """Send a raw console command (e.g. 'set <global> <value>', or any GML function name with
     space-separated args). Returns app log lines printed meanwhile (empty when attached)."""
     return inst.command(command, wait)
 
 
-@mcp.tool()
+@tool
 def status() -> dict:
     """Connection mode (launched/attached/stopped), open project and recent app log."""
     return inst.status()
 
 
-@mcp.tool()
+@tool
 def close() -> str:
     """Quit Pixel Composer if this server launched it."""
     return inst.close()

@@ -89,6 +89,7 @@ class Instance:
         self.lines: list[str] = []
         self.lock = threading.Lock()
         self.project: Path | None = None  # the file the agent edits
+        self.loaded: Path | None = None   # the file the app opened (a space-free copy when needed)
         atexit.register(self.close)
 
     # ---- process ----
@@ -196,9 +197,40 @@ class Instance:
             if line is None or "ERROR" in line:
                 raise PxcError("load failed:\n" + "\n".join(self.since(mark)[-25:]))
         time.sleep(1.5)  # give the graph a frame or two to render before anyone exports
-        self.project = path
+        self.project, self.loaded = path, target
         return {"project": str(path), "loaded_as": str(target), "mode": self.mode(),
                 "errors": [l for l in self.since(mark) if ERROR_RE.search(l)]}
+
+    def save(self, timeout: float = 30) -> dict:
+        """Save the app's open project and copy it back to the agent's file if it was loaded from a copy."""
+        if self.project is None or self.loaded is None:
+            raise PxcError("open a project first")
+        before = self.loaded.stat().st_mtime_ns
+        ws_send("SAVE")
+        # Watch the file rather than the log so this also works when attached (no stdout).
+        end = time.time() + timeout
+        while self.loaded.stat().st_mtime_ns == before:
+            if time.time() > end:
+                raise PxcError(f"app did not save {self.loaded} within {timeout}s")
+            time.sleep(0.2)
+        size = -1
+        while size != (size := self.loaded.stat().st_size):
+            time.sleep(0.5)
+        if self.loaded != self.project:
+            shutil.copyfile(self.loaded, self.project)
+        return {"saved": str(self.project)}
+
+    def add_node(self, node_type: str, x: int = 0, y: int = 0) -> dict:
+        self.save()
+        assert self.project is not None  # save() raised otherwise
+        before = {n["id"] for n in Project(self.project).nodes()}
+        ws_send(f"nodeBuild {node_type} {int(x)} {int(y)}")
+        time.sleep(0.5)
+        self.save()
+        new = [n for n in Project(self.project).nodes() if n["id"] not in before]
+        if not new:
+            raise PxcError(f"Pixel Composer did not create '{node_type}' (unknown node type?)")
+        return {"type": new[0]["type"], "id": new[0]["id"], "iname": new[0].get("iname")}
 
     def export(self, timeout: float = 180, settle: float = 1.5) -> dict:
         if self.project is None:
