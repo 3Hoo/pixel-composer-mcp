@@ -53,7 +53,10 @@ uv run python examples/elemental-rise/build_fire.py
 
 Particles are not seeded, so a rebuild is similar but not identical; check it again with
 `check_sheet`. To re-export an existing project without rebuilding it, use the MCP tools
-`open_project("examples/elemental-rise/fire.pxc")` and then `export()`.
+`open_project("examples/elemental-rise/fire.pxc")` and then `export()`. The committed `.pxc` files
+keep the absolute export paths of the checkout they were built in; on another machine
+`open_project` lists them under `warnings`, and `set_input(<export node>, 1, <path>)` repoints
+each one (or rebuild, which writes paths next to the script).
 
 ## What to change
 

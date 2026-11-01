@@ -112,6 +112,25 @@ def ws_send(command: str) -> None:
             time.sleep(0.3)  # one frame per app network event; also lets the last land before close
 
 
+def _export_dir(node: dict) -> Path | None:
+    d = str(((node.get("inputs") or [{}, {}])[1].get("r") or {}).get("d") or "")
+    if not d:
+        return None
+    p = Path(d)
+    return p.parent if p.suffix else p
+
+
+def _export_path_warnings(proj: Project) -> list[str]:
+    """Export nodes whose target folder does not exist, e.g. a project made on another machine."""
+    out = []
+    for n in proj.export_nodes():
+        d = _export_dir(n)
+        if d is not None and not d.is_dir():
+            out.append(f"{n.get('iname') or n['id']} exports to {d.as_posix()}, which does not exist; "
+                       f"repoint it with set_input('{n.get('iname') or n['id']}', 1, '<new path>')")
+    return out
+
+
 class Instance:
     def __init__(self):
         self.proc: subprocess.Popen | None = None
@@ -119,6 +138,9 @@ class Instance:
         self.lock = threading.Lock()
         self.project: Path | None = None  # the file the agent edits
         self.loaded: Path | None = None   # the file the app opened (a space-free copy when needed)
+        # mtime of self.project when the app and the file last agreed. A later mtime means the file
+        # was edited without a reload, and an app SAVE would overwrite those edits.
+        self.synced: int | None = None
         atexit.register(self.close)
 
     # ---- process ----
@@ -227,13 +249,25 @@ class Instance:
                 raise PxcError("load failed:\n" + "\n".join(self.since(mark)[-25:]))
         time.sleep(1.5)  # give the graph a frame or two to render before anyone exports
         self.project, self.loaded = path, target
+        self.synced = path.stat().st_mtime_ns
         return {"project": str(path), "loaded_as": str(target), "mode": self.mode(),
-                "errors": [l for l in self.since(mark) if ERROR_RE.search(l)]}
+                "errors": [l for l in self.since(mark) if ERROR_RE.search(l)],
+                "warnings": _export_path_warnings(Project(path))}
+
+    @property
+    def dirty(self) -> bool:
+        """The project file holds edits the app has not loaded yet."""
+        return self.project is not None and self.project.stat().st_mtime_ns != self.synced
 
     def save(self, timeout: float = 30) -> dict:
-        """Save the app's open project and copy it back to the agent's file if it was loaded from a copy."""
+        """Save the app's open project and copy it back to the agent's file if it was loaded from a copy.
+
+        File edits made without a reload are loaded into the app first, so the save keeps them.
+        """
         if self.project is None or self.loaded is None:
             raise PxcError("open a project first")
+        if self.dirty:
+            self.open(self.project)
         before = self.loaded.stat().st_mtime_ns
         ws_send("SAVE")
         # Watch the file rather than the log so this also works when attached (no stdout).
@@ -247,6 +281,7 @@ class Instance:
             time.sleep(0.5)
         if self.loaded != self.project:
             shutil.copyfile(self.loaded, self.project)
+        self.synced = self.project.stat().st_mtime_ns
         return {"saved": str(self.project)}
 
     def add_node(self, node_type: str, x: int = 0, y: int = 0) -> dict:
@@ -265,9 +300,14 @@ class Instance:
         assert self.project is not None  # save() raised otherwise
         before = {n["id"] for n in Project(self.project).nodes()}
         ws_send(f"nodeBuild {node_type} {int(x)} {int(y)}")
-        time.sleep(0.5)
-        self.save()
-        new = [n for n in Project(self.project).nodes() if n["id"] not in before]
+        # The app builds the node over a few frames; save until it shows up in the file.
+        new: list[dict] = []
+        for _ in range(20):
+            time.sleep(0.5)
+            self.save()
+            new = [n for n in Project(self.project).nodes() if n["id"] not in before]
+            if new:
+                break
         if not new:
             raise PxcError(f"Pixel Composer did not create '{node_type}' (unknown node type?)")
         return {"type": new[0]["type"], "id": new[0]["id"], "iname": new[0].get("iname")}
@@ -275,15 +315,12 @@ class Instance:
     def export(self, timeout: float = 180, settle: float = 1.5) -> dict:
         if self.project is None:
             raise PxcError("open a project first")
+        if self.dirty:  # export what the file says, not the graph the app loaded earlier
+            self.open(self.project)
         nodes = Project(self.project).export_nodes()
         if not nodes:
             raise PxcError("project has no Export node; add one in Pixel Composer")
-        dirs = set()
-        for n in nodes:
-            d = str(((n.get("inputs") or [{}, {}])[1].get("r") or {}).get("d") or "")
-            if d:
-                p = Path(d)
-                dirs.add(p.parent if p.suffix else p)
+        dirs = {d for n in nodes if (d := _export_dir(n)) is not None}
 
         self.connect()
         mark, t0 = self.mark(), time.time() - 1

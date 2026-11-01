@@ -5,6 +5,7 @@ Grid sheet, frames left-to-right then top-to-bottom, transparent background, gro
 peak 100-140 px above the ground, pixel style hard-edged with at most 8 colors.
 """
 
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Literal
 
@@ -14,6 +15,9 @@ EXPECTED_FRAMES = {"pixel": 30, "illust": 60}
 PEAK_WINDOW = {"pixel": (6, 12), "illust": (12, 24)}
 PEAK_HEIGHT = (100, 140)
 MAX_PIXEL_COLORS = 8
+# A colour this rare (share of all opaque pixels, or at most this many pixels) is a stray: a
+# palette leak or a leftover anti-aliased pixel, not part of the art.
+STRAY_SHARE, STRAY_MIN_PX = 0.0005, 4
 
 
 def _bbox_rows(alpha: Image.Image) -> tuple[int, int] | None:
@@ -40,7 +44,8 @@ def check_sheet(path: str, style: Literal["pixel", "illust"], frame_w: int = 128
         failures.append(f"{n} frames, expected {EXPECTED_FRAMES[style]}")
 
     tops: list[int | None] = []
-    colors: set[tuple[int, int, int]] = set()
+    colors: Counter = Counter()
+    color_frames: defaultdict = defaultdict(set)
     soft = False
     for i in range(n):
         frame, a = cells[i], alphas[i]
@@ -59,7 +64,10 @@ def check_sheet(path: str, style: Literal["pixel", "illust"], frame_w: int = 128
             soft = True
             if style == "pixel":
                 failures.append(f"frame {i} has semi-transparent alpha ({sum(hist[1:255])} px)")
-        colors.update(rgb for (rgb, alpha) in ((p[:3], p[3]) for p in frame.get_flattened_data()) if alpha == 255)
+        here = Counter(p[:3] for p in frame.get_flattened_data() if p[3] == 255)
+        colors.update(here)
+        for rgb in here:
+            color_frames[rgb].add(i)
 
     heights = [ground_y - t if t is not None else 0 for t in tops]
     peak = max(range(n), key=lambda i: heights[i]) if n else -1  # first frame at max height
@@ -76,6 +84,12 @@ def check_sheet(path: str, style: Literal["pixel", "illust"], frame_w: int = 128
             failures.append(f"frame {peak} bottom row {bottom[1]} is off the ground line {ground_y}")
     if style == "pixel" and len(colors) > MAX_PIXEL_COLORS:
         failures.append(f"{len(colors)} opaque colors, expected <= {MAX_PIXEL_COLORS}")
+    if style == "pixel":
+        rare = max(STRAY_MIN_PX, sum(colors.values()) * STRAY_SHARE)
+        for rgb, count in sorted(colors.items(), key=lambda kv: kv[1]):
+            if count <= rare:
+                frames = ", ".join(str(f) for f in sorted(color_frames[rgb]))
+                failures.append(f"stray colour #{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}: {count} px in frame {frames}")
     if style == "illust" and n and not soft:
         failures.append("no soft (semi-transparent) edges in an illustration sheet")
 

@@ -85,3 +85,14 @@ def test_contact_preview_written(tmp_path):
     r = check_sheet(make_sheet(tmp_path, "pixel"), "pixel")
     with Image.open(r["contact"]) as im:
         assert im.size == (1280 * 2, 480 * 2)
+
+
+def test_pixel_sheet_stray_color_named_by_frame(tmp_path):
+    # A colour used by a handful of pixels is a palette leak even when the total count is under the cap.
+    path = make_sheet(tmp_path, "pixel")
+    img = Image.open(path)
+    ox, oy = (14 % COLS) * FW, (14 // COLS) * FH
+    img.putpixel((ox + 60, oy + 140), (12, 250, 90, 255))
+    img.save(path)
+    r = check_sheet(path, "pixel")
+    assert not r["ok"] and any("frame 14" in f and "#0cfa5a" in f for f in r["failures"])

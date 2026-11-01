@@ -28,3 +28,14 @@ def test_describe_node_case_insensitive(src):
 def test_describe_node_unknown(src):
     with pytest.raises(KeyError, match="Node_Nope"):
         describe_node("Node_Nope", src)
+
+
+def test_describe_node_keeps_inputs_without_name(tmp_path):
+    # Some constructors take no name string; the input still exists and uses the kind as its label.
+    d = tmp_path / "scripts" / "node_shape"
+    d.mkdir(parents=True)
+    (d / "node_shape.gml").write_text('newInput(0, nodeValue_Dimension());\n'
+                                      'newInput(1, nodeValue_Bool("Anti-aliasing", false));\n')
+    inputs = describe_node("Node_Shape", tmp_path)["inputs"]
+    assert inputs[0] == {"index": 0, "name": "Dimension", "kind": "Dimension"}
+    assert inputs[1]["name"] == "Anti-aliasing"

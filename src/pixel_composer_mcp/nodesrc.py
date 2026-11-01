@@ -8,7 +8,8 @@ class (declared as `input_len + N`) are not listed.
 import re
 from pathlib import Path
 
-INPUT_RE = re.compile(r'newInput\(\s*(\d+)\s*,\s*nodeValue_?(\w*)\(\s*"([^"]+)"')
+# The name string is optional: e.g. nodeValue_Dimension() takes none, so the kind labels it.
+INPUT_RE = re.compile(r'newInput\(\s*(\d+)\s*,\s*nodeValue_?(\w*)\(\s*(?:"([^"]+)")?')
 OUTPUT_RE = re.compile(r'newOutput\(\s*(\d+)\s*,\s*nodeValue_Output\(\s*"([^"]+)"')
 
 
@@ -19,7 +20,8 @@ def describe_node(node_type: str, source_dir: Path) -> dict:
     if not hits:
         raise KeyError(f"no source file for {node_type} under {source_dir}/scripts")
     text = hits[0].read_text(encoding="utf-8", errors="replace")
-    inputs = {int(i): {"index": int(i), "name": name, "kind": kind} for i, kind, name in INPUT_RE.findall(text)}
+    inputs = {int(i): {"index": int(i), "name": name or kind, "kind": kind}
+              for i, kind, name in INPUT_RE.findall(text)}
     outputs = {int(i): {"index": int(i), "name": name} for i, name in OUTPUT_RE.findall(text)}
     return {"type": node_type, "file": str(hits[0]),
             "inputs": [inputs[k] for k in sorted(inputs)], "outputs": [outputs[k] for k in sorted(outputs)]}
