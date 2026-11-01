@@ -101,14 +101,34 @@ class Project:
         inp.pop("from_index", None)
         return {"node": d["id"], "in_index": in_index, "was_from": was}
 
-    def set_input(self, ref: str, index: int, value) -> dict:
+    def _unlinked(self, ref: str, index: int) -> tuple[dict, dict]:
         node, inp = self._input(ref, index)
         if inp.get("from_node"):
             # A linked input ignores its stored value, so a silent write would do nothing.
             raise ValueError(f"input {index} of {ref} is driven by a connection; edit the source node instead")
-        old = (inp.get("r") or {}).get("d")
-        inp.setdefault("r", {})["d"] = value
+        return node, inp
+
+    def set_input(self, ref: str, index: int, value, absolute: bool = False) -> dict:
+        """Static value; replaces keyframes. absolute=True: positions/areas in pixels, not 0..1
+        of the surface (the input's 'unit')."""
+        node, inp = self._unlinked(ref, index)
+        r = inp.get("r")
+        old = r.get("d") if isinstance(r, dict) else r
+        inp.pop("anim", None)
+        inp["r"] = {"d": value}
+        if absolute:
+            inp["unit"] = 0
         return {"node": node["id"], "index": index, "old": old, "new": value}
+
+    def set_keyframes(self, ref: str, index: int, keys: list, absolute: bool = False) -> dict:
+        """Linear keyframes [(frame, value), ...], serialised as the app's node_keyframe does.
+        Booleans interpolate too: hold a value with a duplicate key right before a change."""
+        node, inp = self._unlinked(ref, index)
+        inp["anim"] = True
+        inp["r"] = [[[0, int(f)], v, [0, 1], [0, 0], 0, 0, True, 0, 16777215] for f, v in keys]
+        if absolute:
+            inp["unit"] = 0
+        return {"node": node["id"], "index": index, "keys": len(keys)}
 
     def add_export_node(self, x: int, y: int, path: str) -> str:
         """Add an Export node from a bundled template (no app involved).

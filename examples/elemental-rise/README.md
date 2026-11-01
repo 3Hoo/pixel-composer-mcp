@@ -60,8 +60,9 @@ each one (or rebuild, which writes paths next to the script).
 
 ## What to change
 
-All values live in the build scripts. `pxgraph.py` holds the shared parts: `emitter()` (one
-particle layer) and `output_tail()` (pixel/illustration branches, sheets, GIFs).
+All values live in the build scripts. `pxgraph.py` holds the shared `output_tail()`
+(pixel/illustration branches, sheets, GIFs); `emitter()` (one particle layer) and the other graph
+helpers come from `pixel_composer_mcp.graph`.
 
 - **Timing.** Particle layers spawn only inside their `switch(on, off)` window (frames). Shapes move
   through keyframe lists `[(frame, value), ...]`. The bang is frame 12 everywhere.

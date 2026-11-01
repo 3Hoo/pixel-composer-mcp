@@ -21,7 +21,8 @@ MCP server that lets an agent drive [Pixel Composer](https://github.com/Ttanasar
 |---|---|
 | `open_project(path)` | load a `.pxc` (launches the app if needed) |
 | `inspect_project(path?)` | nodes, types, stored input values by index, connections (reads the file) |
-| `set_input(node, index, value, path?, reload=True)` | edit a static input value in the file and reload it |
+| `set_input(node, index, value, path?, reload=True, absolute=False)` | edit a static input value in the file and reload it (replaces keyframes; `absolute` = pixels instead of 0..1) |
+| `set_keyframes(node, index, keys, path?, reload=True, absolute=False)` | animate an input with linear keyframes `[[frame, value], ...]` |
 | `add_node(node_type, x, y)` | create a node (e.g. `Node_Particle`) in the open project via the app, save, return its id |
 | `connect(src, out_index, dst, in_index)` / `disconnect(dst, in_index)` | wire / unwire nodes in the file, then reload |
 | `save()` | save the app's open project back to the `.pxc` |
@@ -57,6 +58,17 @@ Environment overrides: `PXC_DIR` (install folder), `PXC_DATA_DIR` (default `%LOC
 it tracks the latest source, so trust a saved `.pxc`'s defaults if an index looks off).
 
 File-editing tools save the app first when the edited file is the open project, so unsaved in-app changes survive.
+With `reload=False` the edit waits in the file; the next save, export or reloading edit loads it into the app first.
+
+## Build scripts
+
+For graphs with many nodes and keyframes, a Python build script is easier to iterate on and rebuild than
+tool calls. `pixel_composer_mcp.graph` has the helpers (`new_project`, `Graph`, `emitter`, `switch`,
+`curve`, `gradient`, `color`); `examples/elemental-rise` shows complete scripts. Run one from anywhere:
+
+```
+uv run --with git+https://github.com/3Hoo/pixel-composer-mcp python build.py
+```
 
 ## Security
 

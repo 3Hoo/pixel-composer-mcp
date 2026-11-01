@@ -82,3 +82,31 @@ def test_export_template_uses_node_defaults(tmp_path):
     for i, inp in enumerate(node["inputs"][2:], start=2):
         if "def_val" in inp and "r" in inp:
             assert inp["r"]["d"] == inp["def_val"], f"input {i}"
+
+
+def plain_blur(tmp_path):
+    p = tmp_path / "plain.pxc"
+    p.write_text(json.dumps({"nodes": [{"id": "a", "iname": "Blur1", "name": "Blur", "type": "Node_Blur",
+                                        "inputs": [{"r": {"d": -4}, "from_node": "b"}, {"r": {"d": 2}}]}]}))
+    return Project(p)
+
+
+def test_set_keyframes_then_back_to_static(tmp_path):
+    proj = plain_blur(tmp_path)
+    proj.set_keyframes("Blur1", 1, [(0, 2), (10, 6)])
+    inp = proj.find("Blur1")["inputs"][1]
+    assert inp["anim"] is True
+    assert [(k[0][1], k[1]) for k in inp["r"]] == [(0, 2), (10, 6)]
+    proj.set_input("Blur1", 1, 3)  # a static value replaces the keyframes
+    assert "anim" not in inp and inp["r"] == {"d": 3}
+
+
+def test_absolute_values_use_pixel_unit(tmp_path):
+    proj = plain_blur(tmp_path)
+    proj.set_input("Blur1", 1, [10, 20], absolute=True)
+    assert proj.find("Blur1")["inputs"][1]["unit"] == 0
+
+
+def test_set_keyframes_refuses_linked_input(tmp_path):
+    with pytest.raises(ValueError, match="connection"):
+        plain_blur(tmp_path).set_keyframes("Blur1", 0, [(0, 1)])

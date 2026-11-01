@@ -12,7 +12,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from pixel_composer_mcp.app import Instance  # noqa: E402
-from pxgraph import TAIL_NODES, Graph, color, emitter, new_project, output_tail, switch  # noqa: E402
+from pixel_composer_mcp.graph import Graph, color, emitter, new_project, switch  # noqa: E402
+from pxgraph import TAIL_NODES, output_tail  # noqa: E402
 
 HERE = Path(__file__).parent
 W, H, FRAMES, FPS, GROUND, CX = 128, 160, 60, 24, 144, 64

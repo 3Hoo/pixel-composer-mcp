@@ -75,12 +75,26 @@ def _edit(path: str | None, reload: bool, fn) -> dict:
 
 
 @tool
-def set_input(node: str, index: int, value: Any, path: str | None = None, reload: bool = True) -> dict:
-    """Set a node input's static value in the .pxc file (node = id, iname or name).
+def set_input(node: str, index: int, value: Any, path: str | None = None, reload: bool = True,
+              absolute: bool = False) -> dict:
+    """Set a node input's static value in the .pxc file (node = id, iname or name); replaces keyframes.
 
-    Reloads it in the app when it is the open project, so a following export uses the new value.
+    absolute=True stores positions/areas in pixels instead of 0..1 of the surface.
+    Reloads it in the app when it is the open project, so a following export uses the new value;
+    reload=False batches edits (the next save/export/edit loads them).
     """
-    return _edit(path, reload, lambda p: p.set_input(node, index, value))
+    return _edit(path, reload, lambda p: p.set_input(node, index, value, absolute))
+
+
+@tool
+def set_keyframes(node: str, index: int, keys: list[tuple[int, Any]], path: str | None = None,
+                  reload: bool = True, absolute: bool = False) -> dict:
+    """Animate a node input with linear keyframes keys=[[frame, value], ...] (frames from 0).
+
+    Booleans interpolate as well: to switch at frame f, key the old value at f-1 and the new at f.
+    set_input on the same input turns the animation off again.
+    """
+    return _edit(path, reload, lambda p: p.set_keyframes(node, index, keys, absolute))
 
 
 @tool
