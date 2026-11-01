@@ -70,6 +70,20 @@ tool calls. `pixel_composer_mcp.graph` has the helpers (`new_project`, `Graph`, 
 uv run --with git+https://github.com/3Hoo/pixel-composer-mcp python build.py
 ```
 
+## Agent skill
+
+`skills/pixel-composer` is an agent skill for working with this server: how to interview the user
+before building, a map of which Pixel Composer nodes do what (and which were verified through this
+server), known pitfalls, and per-task notes for effects, item icons, tilesets and character rigging.
+Install it by copying or linking the folder into your agent's skills directory:
+
+```
+# Claude Code (PowerShell)
+New-Item -ItemType Junction -Path "$HOME\.claude\skills\pixel-composer" -Target "<repo>\skills\pixel-composer"
+```
+
+Other agents: the same folder under their skills directory (e.g. `~/.pi/agent/skills`).
+
 ## Security
 
 Remote Terminal has no authentication and executes arbitrary app functions. It listens on all interfaces

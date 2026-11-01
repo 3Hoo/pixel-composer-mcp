@@ -18,7 +18,9 @@ mcp = MCPServer(
         "Typical loop: open_project -> inspect_project -> set_input (auto-reloads) -> export. "
         "Build graphs with add_node / connect; look up what an input index means with describe_node. "
         "Input values are positional (index); names are not stored in .pxc files. "
-        "export renders every Export node in the project and returns the written files."
+        "export renders every Export node in the project and returns the written files. "
+        "For the working procedure (interview, node map, known pitfalls, checks) use the pixel-composer "
+        "agent skill from the repo's skills/pixel-composer folder."
     ),
 )
 inst = app.Instance()
