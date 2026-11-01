@@ -60,7 +60,7 @@ description: Use when making or editing pixel art, sprite animations, item icons
 - 노드는 `references/capabilities.md`에서 고른다. 입력 번호는 `describe_node`로 확인하고 추측하지 않는다.
 - 작업 방식:
   - **반복과 재현이 필요한 작업:** Python 빌드 스크립트로 한다. `pixel_composer_mcp.graph`(`new_project`, `Graph`, `emitter`, `switch`, `curve`, `gradient`, `color`)를 쓰고, 모든 값을 스크립트에 둔다.
-    - 실행: `uv run --with git+https://github.com/3Hoo/pixel-composer-mcp python build.py`
+    - 실행: `uv run --python 3.13 --with git+https://github.com/3Hoo/pixel-composer-mcp python build.py`
     - 완성 예시: 리포의 `examples/elemental-rise`
   - **조회, 작은 수정, 실험:** MCP 툴로 한다.
     - `inspect_project`, `set_input`, `set_keyframes`, `add_node`, `connect`, `export`

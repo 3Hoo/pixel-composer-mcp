@@ -67,7 +67,7 @@ tool calls. `pixel_composer_mcp.graph` has the helpers (`new_project`, `Graph`, 
 `curve`, `gradient`, `color`); `examples/elemental-rise` shows complete scripts. Run one from anywhere:
 
 ```
-uv run --with git+https://github.com/3Hoo/pixel-composer-mcp python build.py
+uv run --python 3.13 --with git+https://github.com/3Hoo/pixel-composer-mcp python build.py
 ```
 
 ## Agent skill

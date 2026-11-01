@@ -5,7 +5,7 @@ then edited in the saved .pxc and the project is reloaded. Value formats mirror 
 own serialisation (scripts/node_keyframe, curveBox, gradients_function in its source).
 
 Run a build script from anywhere with the package on the path, e.g.
-    uv run --with git+https://github.com/3Hoo/pixel-composer-mcp python build.py
+    uv run --python 3.13 --with git+https://github.com/3Hoo/pixel-composer-mcp python build.py
 """
 
 import json
