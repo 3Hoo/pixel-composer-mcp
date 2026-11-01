@@ -53,6 +53,15 @@ DIALOG_NODES = frozenset({
 })
 
 
+# File-reading node types the app can create without the dialog: Node_create_<X>_path(x, y, path)
+# sets the file directly (verified for Node_ASE_File_Read; the others share the same source pattern).
+FILE_NODES = frozenset({
+    "Node_3D_Json", "Node_ASE_File_Read", "Node_CSV_File_Read", "Node_Display_Image", "Node_Image",
+    "Node_Image_gif", "Node_Image_mp4", "Node_Json_File_Read", "Node_Krita_File_Read", "Node_ORA_File_Read",
+    "Node_PXC", "Node_Text_File_Read", "Node_WAV_File_Read", "Node_XML_File_Read",
+})
+
+
 def ensure_addon() -> bool:
     """Make Remote Terminal start with the app; merge, never overwrite other addons.
 
@@ -284,10 +293,20 @@ class Instance:
         self.synced = self.project.stat().st_mtime_ns
         return {"saved": str(self.project)}
 
-    def add_node(self, node_type: str, x: int = 0, y: int = 0) -> dict:
-        if node_type in DIALOG_NODES:
-            raise PxcError(f"{node_type} opens a file dialog when created and would freeze the app; "
-                           "add it in the Pixel Composer window instead")
+    def add_node(self, node_type: str, x: int = 0, y: int = 0, file: str | None = None) -> dict:
+        command = f"nodeBuild {node_type} {int(x)} {int(y)}"
+        if file is not None:
+            if node_type not in FILE_NODES:
+                raise PxcError(f"{node_type} does not take a file; file-reading types: {', '.join(sorted(FILE_NODES))}")
+            path = Path(file).resolve()
+            if " " in str(path):
+                raise PxcError(f"{path}: the console splits on spaces; use a path without spaces")
+            if not path.exists():
+                raise PxcError(f"{path} not found")
+            command = f"Node_create_{node_type[len('Node_'):]}_path {int(x)} {int(y)} {path.as_posix()}"
+        elif node_type in DIALOG_NODES:
+            hint = " (pass file=<path>)" if node_type in FILE_NODES else "; add it in the Pixel Composer window instead"
+            raise PxcError(f"{node_type} opens a file dialog when created and would freeze the app{hint}")
         if node_type == "Node_Export":
             self.save()
             assert self.project is not None
@@ -299,7 +318,7 @@ class Instance:
         self.save()
         assert self.project is not None  # save() raised otherwise
         before = {n["id"] for n in Project(self.project).nodes()}
-        ws_send(f"nodeBuild {node_type} {int(x)} {int(y)}")
+        ws_send(command)
         # The app builds the node over a few frames; save until it shows up in the file.
         new: list[dict] = []
         for _ in range(20):

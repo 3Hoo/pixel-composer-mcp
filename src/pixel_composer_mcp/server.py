@@ -110,9 +110,13 @@ def disconnect(dst: str, in_index: int, path: str | None = None) -> dict:
 
 
 @tool
-def add_node(node_type: str, x: int = 0, y: int = 0) -> dict:
-    """Create a node (e.g. 'Node_Particle') in the open project via the app, save, return its id."""
-    return inst.add_node(node_type, x, y)
+def add_node(node_type: str, x: int = 0, y: int = 0, file: str | None = None) -> dict:
+    """Create a node (e.g. 'Node_Particle') in the open project via the app, save, return its id.
+
+    File-reading nodes (Node_ASE_File_Read, Node_Image, ...) need file=<path without spaces>;
+    built by type alone they open a dialog that freezes the app.
+    """
+    return inst.add_node(node_type, x, y, file)
 
 
 @tool

@@ -23,7 +23,7 @@ MCP server that lets an agent drive [Pixel Composer](https://github.com/Ttanasar
 | `inspect_project(path?)` | nodes, types, stored input values by index, connections (reads the file) |
 | `set_input(node, index, value, path?, reload=True, absolute=False)` | edit a static input value in the file and reload it (replaces keyframes; `absolute` = pixels instead of 0..1) |
 | `set_keyframes(node, index, keys, path?, reload=True, absolute=False)` | animate an input with linear keyframes `[[frame, value], ...]` |
-| `add_node(node_type, x, y)` | create a node (e.g. `Node_Particle`) in the open project via the app, save, return its id |
+| `add_node(node_type, x, y, file?)` | create a node (e.g. `Node_Particle`) in the open project via the app, save, return its id; file-reading nodes (`Node_ASE_File_Read`, `Node_Image`, …) take `file` |
 | `connect(src, out_index, dst, in_index)` / `disconnect(dst, in_index)` | wire / unwire nodes in the file, then reload |
 | `save()` | save the app's open project back to the `.pxc` |
 | `describe_node(node_type)` | input/output names by index, read from a Pixel Composer source clone (`PXC_SOURCE`) |

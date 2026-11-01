@@ -34,6 +34,12 @@ class FakeApp:
                 _, t, x, y = line.split()
                 node = {"id": uuid.uuid4().hex, "iname": t[5:] + "1", "type": t, "x": int(x), "y": int(y)}
                 self.pending.append([self.build_delay, node])
+            elif line.startswith("Node_create_") and line.split()[0].endswith("_path"):
+                name, x, y, file = line.split(" ", 3)
+                t = "Node_" + name[len("Node_create_"):-len("_path")]
+                node = {"id": uuid.uuid4().hex, "iname": t[5:] + "1", "type": t, "x": int(x), "y": int(y),
+                        "inputs": [{"r": {"d": file}}]}
+                self.pending.append([self.build_delay, node])
             elif line == "SAVE":
                 self._save()
 
@@ -108,3 +114,20 @@ def test_open_warns_about_export_paths_that_cannot_be_written(fake, tmp_path):
     r = fake.inst.open(fake.path)
     assert len(r["warnings"]) == 1 and nid[-6:] in r["warnings"][0] and "Q:/not/here" in r["warnings"][0]
     assert ok[-6:] not in r["warnings"][0]
+
+
+def test_add_file_node_without_dialog(fake, tmp_path):
+    # File-reading nodes open a dialog when built by type; the app's *_path creators take the file.
+    ase = tmp_path / "hero.aseprite"
+    ase.write_bytes(b"x")
+    r = server.add_node("Node_ASE_File_Read", 0, 0, file=str(ase))
+    assert r["type"] == "Node_ASE_File_Read"
+    node = Project(fake.path).find(r["id"])
+    assert node["inputs"][0]["r"]["d"] == ase.as_posix()
+
+
+def test_add_file_node_rejects_spaced_or_missing_path(fake, tmp_path):
+    with pytest.raises(Exception, match="spaces"):
+        server.add_node("Node_ASE_File_Read", 0, 0, file=str(tmp_path / "my hero.aseprite"))
+    with pytest.raises(Exception, match="not found"):
+        server.add_node("Node_ASE_File_Read", 0, 0, file=str(tmp_path / "missing.aseprite"))
