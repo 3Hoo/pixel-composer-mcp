@@ -156,12 +156,25 @@ def close() -> str:
 
 
 @tool
-def check_sheet(path: str, style: str, frame_w: int = 128, frame_h: int = 160, ground_y: int = 144) -> dict:
-    """Check an effect sprite sheet (style 'pixel' or 'illust') against the frame/size/palette rules.
-    Also writes <sheet>_contact.png, a 2x nearest-neighbour preview to look at."""
+def check_sheet(path: str, style: str, frame_w: int | None = None, frame_h: int | None = None,
+                frames: int | None = None, ground_y: int | None = None,
+                peak_height: tuple[int, int] | None = None, peak_window: tuple[int, int] | None = None,
+                edges: bool = False, max_colors: int = 8, pixel_scale: int = 1) -> dict:
+    """Check a sprite sheet or single image (style 'pixel' or 'illust'); also writes
+    <sheet>_contact.png, a 2x nearest-neighbour preview to look at.
+
+    Always: grid fits, no empty frames in the middle. Pixel style: hard alpha, at most
+    max_colors, stray colours named by frame, lone-pixel count ('orphans'), and with
+    pixel_scale=k every frame on an aligned k x k grid. frame_w/frame_h default to the whole
+    image. Effect rules run only when given: frames, ground_y (heights measured from it, peak
+    must touch it), peak_height (min, max px), peak_window (first, last frame), edges (no
+    clipping at left/right/top).
+    """
     if style not in ("pixel", "illust"):
         raise ValueError("style must be 'pixel' or 'illust'")
-    return check_sheet_impl(path, style, frame_w, frame_h, ground_y)  # type: ignore[arg-type]
+    return check_sheet_impl(path, style, frame_w, frame_h, frames=frames, ground_y=ground_y,  # type: ignore[arg-type]
+                            peak_height=peak_height, peak_window=peak_window, edges=edges,
+                            max_colors=max_colors, pixel_scale=pixel_scale)
 
 
 def main() -> None:

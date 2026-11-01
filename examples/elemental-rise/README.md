@@ -30,10 +30,15 @@ baked-in bloom. Both use normal alpha blending.
 
 ### Check results
 
-`check_sheet` (frame count, empty frames, edges, height 100-140 px, peak frame window, ground
-contact; for pixel sheets also binary alpha and at most 8 colours):
+`check_sheet` with the effect rules (frame count, empty frames, edges, height 100-140 px, peak
+frame window, ground contact; for pixel sheets also binary alpha, at most 8 colours, no stray
+colours):
 
 ```
+check_sheet("fire_pixel.png", "pixel", 128, 160, frames=30, ground_y=144,
+            peak_height=[100, 140], peak_window=[6, 12], edges=True)    # illust: frames=60, peak_window=[12, 24]
+
+
 fire_illust.png   ok  frames 60  peak_frame 21  peak_height 132
 fire_pixel.png    ok  frames 30  peak_frame 11  peak_height 127  colours 7
 ice_illust.png    ok  frames 60  peak_frame 14  peak_height 116
