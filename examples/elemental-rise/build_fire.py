@@ -12,26 +12,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from pixel_composer_mcp.app import Instance  # noqa: E402
-from pxgraph import Graph, color, curve, gradient, new_project, switch  # noqa: E402
+from pxgraph import TAIL_NODES, Graph, color, emitter, new_project, output_tail, switch  # noqa: E402
 
 HERE = Path(__file__).parent
 W, H, FRAMES, FPS, GROUND, CX = 128, 160, 60, 24, 144, 64
-
-
-def emitter(g: Graph, key: str, sprite: str, bg: str | None, *, spawn, amount, area, life, direction,
-            speed, speed_curve, size, size_curve, colors, alpha_curve, gravity=None):
-    g.link(sprite, key, 0)
-    if bg:
-        g.link(bg, key, 74)
-    g.set(key, 16, 0).set(key, 21, False).set(key, 1, 1)          # stream, no loop, every frame
-    g.anim(key, 27, spawn).set(key, 2, amount)
-    g.set(key, 3, [*area, 0, 0], absolute=True)
-    g.set(key, 5, life).set(key, 6, [0, *direction, 0, 0])
-    g.set(key, 18, speed).set(key, 60, curve(speed_curve))
-    g.set(key, 17, size).set(key, 11, curve(size_curve))
-    g.set(key, 12, gradient(colors)).set(key, 14, curve(alpha_curve))
-    if gravity:
-        g.set(key, 19, gravity).set(key, 57, True)  # gravity only applies with "Use Physics" on
 
 
 inst = Instance()
@@ -39,15 +23,12 @@ path = new_project(HERE / "fire.pxc", W, H, FRAMES, FPS)
 g = Graph(inst, path)
 g.add({
     "blob": ("Node_Shape", 0, 0), "soft": ("Node_Blur", 160, 0), "dot": ("Node_Shape", 0, 160),
-    "tongue": ("Node_Shape", 0, 480), "tongsoft": ("Node_Blur", 160, 480), "bloom": ("Node_Bloom", 1120, 0), "haze": ("Node_Level", 1280, 0),
+    "tongue": ("Node_Shape", 0, 480), "tongsoft": ("Node_Blur", 160, 480),
     "glow": ("Node_Shape", 0, 320), "glowsoft": ("Node_Blur", 160, 320),
     "smoke": ("Node_Particle", 320, 0), "hold": ("Node_Particle", 480, 0), "core": ("Node_Particle", 640, 0),
     "sparks": ("Node_Particle", 800, 0), "inL": ("Node_Particle", 960, 0), "inR": ("Node_Particle", 960, 160),
     "blast": ("Node_Particle", 480, 160), "flash": ("Node_Particle", 960, 320),
-    "thr": ("Node_Threshold", 1120, 160), "amask": ("Node_Alpha_Grey", 1120, 320), "pal": ("Node_Posterize", 1280, 160), "clean": ("Node_De_Stray", 1440, 160),
-    "sheet_il": ("Node_Render_Sprite_Sheet", 1600, 0), "sheet_px": ("Node_Render_Sprite_Sheet", 1600, 160),
-    "png_il": ("Node_Export", 1760, 0), "gif_il": ("Node_Export", 1760, 80),
-    "png_px": ("Node_Export", 1760, 160), "gif_px": ("Node_Export", 1760, 240),
+    **TAIL_NODES,
 })
 
 # sprites: soft round blob, tall flame tongue, small hard dot
@@ -103,23 +84,6 @@ emitter(g, "flash", "soft", "inR", spawn=switch(12, 14), amount=[1, 1], area=[CX
 # pixel version: hard alpha, snap to a 7-colour palette (2 smoke greys + 5 fire), remove stray pixels
 PIXEL_PALETTE = [(110, 90, 100), (165, 135, 130), (150, 35, 35), (225, 75, 35), (255, 145, 45),
                  (255, 215, 95), (255, 250, 215)]
-# Palette Posterize writes opaque pixels everywhere, so it is masked by a hard 0/1 mask made from
-# the thresholded alpha: inside -> palette colour, outside -> the (fully transparent) input.
-g.link("flash", "thr", 0).set("thr", 7, True).set("thr", 8, 0.2)
-g.link("thr", "amask", 0)
-g.link("thr", "pal", 0).link("amask", "pal", 12).set("pal", 2, True).set("pal", 1, [color(*c) for c in PIXEL_PALETTE])
-g.link("pal", "clean", 0)
-
-# bloom spreads near-zero alpha over the whole frame; Level clips it (alpha < 4% -> 0)
-g.link("flash", "bloom", 0).link("bloom", "haze", 0).set("haze", 5, [0.04, 1])
-
-# outputs: illustration every frame, pixel every 2nd frame; 10-column grids
-g.link("haze", "sheet_il", 0).set("sheet_il", 3, 2).set("sheet_il", 4, 10)
-g.link("clean", "sheet_px", 0).set("sheet_px", 3, 2).set("sheet_px", 4, 10).set("sheet_px", 2, 2)
-g.link("sheet_il", "png_il", 0).set("png_il", 1, str(HERE / "fire_illust.png"))
-g.link("sheet_px", "png_px", 0).set("png_px", 1, str(HERE / "fire_pixel.png"))
-g.link("haze", "gif_il", 0).set("gif_il", 1, str(HERE / "fire_illust.gif")).set("gif_il", 3, 2).set("gif_il", 8, FPS)
-g.link("clean", "gif_px", 0).set("gif_px", 1, str(HERE / "fire_pixel.gif")).set("gif_px", 3, 2) \
-    .set("gif_px", 8, FPS // 2).set("gif_px", 14, 2)
+output_tail(g, "flash", PIXEL_PALETTE, HERE / "fire", FPS)
 g.apply()
 print(g.export(timeout=240))
