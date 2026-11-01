@@ -3,6 +3,7 @@ name = "pixel-composer-mcp"
 version = "0.1.0"
 description = "MCP server for driving Pixel Composer through its Remote Terminal addon"
 readme = "README.md"
+license = "MIT"
 authors = [
     { name = "3Hoo", email = "3ho.ent@gmail.com" }
 ]
