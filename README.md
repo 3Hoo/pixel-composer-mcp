@@ -21,7 +21,13 @@ MCP server that lets an agent drive [Pixel Composer](https://github.com/Ttanasar
 |---|---|
 | `open_project(path)` | load a `.pxc` (launches the app if needed) |
 | `inspect_project(path?)` | nodes, types, stored input values by index, connections (reads the file) |
-| `set_input(node, index, value, path?, reload=True)` | edit a static input value in the file and reload it |
+| `set_input(node, index, value, path?, reload=True, absolute=False)` | edit a static input value in the file and reload it (replaces keyframes; `absolute` = pixels instead of 0..1) |
+| `set_keyframes(node, index, keys, path?, reload=True, absolute=False)` | animate an input with linear keyframes `[[frame, value], ...]` |
+| `add_node(node_type, x, y, file?)` | create a node (e.g. `Node_Particle`) in the open project via the app, save, return its id; file-reading nodes (`Node_ASE_File_Read`, `Node_Image`, …) take `file` |
+| `connect(src, out_index, dst, in_index)` / `disconnect(dst, in_index)` | wire / unwire nodes in the file, then reload |
+| `save()` | save the app's open project back to the `.pxc` |
+| `describe_node(node_type)` | input/output names by index, read from a Pixel Composer source clone (`PXC_SOURCE`) |
+| `check_sheet(path, style, frame_w?, frame_h?, ...)` | pass/fail a sprite sheet or image: hard alpha, colour count, stray colours, pixel grid (`pixel_scale`); effect rules (frames, ground, peak, edges) when given; writes a 2x contact preview |
 | `export(timeout=180)` | run every Export node, wait until outputs stop changing, return file paths |
 | `run_command(command)` | raw console command, e.g. `set <global> <value>` or `<gml_function> arg1 arg2` |
 | `status()` / `close()` | mode, project, log tail / quit the app (only if this server launched it) |
@@ -48,7 +54,35 @@ completion by watching the Export folders.
 ```
 
 Environment overrides: `PXC_DIR` (install folder), `PXC_DATA_DIR` (default `%LOCALAPPDATA%\PixelComposer`),
-`PXC_TERMINAL_PORT` (default `22400`).
+`PXC_TERMINAL_PORT` (default `22400`), `PXC_SOURCE` (clone of the Pixel Composer repo, for `describe_node`;
+it tracks the latest source, so trust a saved `.pxc`'s defaults if an index looks off).
+
+File-editing tools save the app first when the edited file is the open project, so unsaved in-app changes survive.
+With `reload=False` the edit waits in the file; the next save, export or reloading edit loads it into the app first.
+
+## Build scripts
+
+For graphs with many nodes and keyframes, a Python build script is easier to iterate on and rebuild than
+tool calls. `pixel_composer_mcp.graph` has the helpers (`new_project`, `Graph`, `emitter`, `switch`,
+`curve`, `gradient`, `color`); `examples/elemental-rise` shows complete scripts. Run one from anywhere:
+
+```
+uv run --with git+https://github.com/3Hoo/pixel-composer-mcp python build.py
+```
+
+## Agent skill
+
+`skills/pixel-composer` is an agent skill for working with this server: how to interview the user
+before building, a map of which Pixel Composer nodes do what (and which were verified through this
+server), known pitfalls, and per-task notes for effects, item icons, tilesets and character rigging.
+Install it by copying or linking the folder into your agent's skills directory:
+
+```
+# Claude Code (PowerShell)
+New-Item -ItemType Junction -Path "$HOME\.claude\skills\pixel-composer" -Target "<repo>\skills\pixel-composer"
+```
+
+Other agents: the same folder under their skills directory (e.g. `~/.pi/agent/skills`).
 
 ## Security
 

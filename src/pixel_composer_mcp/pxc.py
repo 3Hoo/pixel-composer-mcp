@@ -8,8 +8,11 @@ Older or hand-written files may be bare JSON; the app accepts both.
 
 import json
 import struct
+import uuid
 import zlib
 from pathlib import Path
+
+EXPORT_TEMPLATE = Path(__file__).with_name("templates") / "export_node.json"
 
 
 class Project:
@@ -79,18 +82,66 @@ class Project:
         return {"path": str(self.path), "version": self.data.get("version"),
                 "node_count": len(out), "nodes": out}
 
-    def set_input(self, ref: str, index: int, value) -> dict:
+    def _input(self, ref: str, index: int) -> tuple[dict, dict]:
         node = self.find(ref)
         inputs = node.setdefault("inputs", [])
         while len(inputs) <= index:
             inputs.append({})
-        inp = inputs[index]
+        return node, inputs[index]
+
+    def connect(self, src: str, out_index: int, dst: str, in_index: int) -> dict:
+        s = self.find(src)
+        d, inp = self._input(dst, in_index)
+        inp["from_node"], inp["from_index"] = s["id"], out_index
+        return {"from": s["id"], "from_index": out_index, "to": d["id"], "in_index": in_index}
+
+    def disconnect(self, dst: str, in_index: int) -> dict:
+        d, inp = self._input(dst, in_index)
+        was = inp.pop("from_node", None)
+        inp.pop("from_index", None)
+        return {"node": d["id"], "in_index": in_index, "was_from": was}
+
+    def _unlinked(self, ref: str, index: int) -> tuple[dict, dict]:
+        node, inp = self._input(ref, index)
         if inp.get("from_node"):
             # A linked input ignores its stored value, so a silent write would do nothing.
             raise ValueError(f"input {index} of {ref} is driven by a connection; edit the source node instead")
-        old = (inp.get("r") or {}).get("d")
-        inp.setdefault("r", {})["d"] = value
+        return node, inp
+
+    def set_input(self, ref: str, index: int, value, absolute: bool = False) -> dict:
+        """Static value; replaces keyframes. absolute=True: positions/areas in pixels, not 0..1
+        of the surface (the input's 'unit')."""
+        node, inp = self._unlinked(ref, index)
+        r = inp.get("r")
+        old = r.get("d") if isinstance(r, dict) else r
+        inp.pop("anim", None)
+        inp["r"] = {"d": value}
+        if absolute:
+            inp["unit"] = 0
         return {"node": node["id"], "index": index, "old": old, "new": value}
+
+    def set_keyframes(self, ref: str, index: int, keys: list, absolute: bool = False) -> dict:
+        """Linear keyframes [(frame, value), ...], serialised as the app's node_keyframe does.
+        Booleans interpolate too: hold a value with a duplicate key right before a change."""
+        node, inp = self._unlinked(ref, index)
+        inp["anim"] = True
+        inp["r"] = [[[0, int(f)], v, [0, 1], [0, 0], 0, 0, True, 0, 16777215] for f, v in keys]
+        if absolute:
+            inp["unit"] = 0
+        return {"node": node["id"], "index": index, "keys": len(keys)}
+
+    def add_export_node(self, x: int, y: int, path: str) -> str:
+        """Add an Export node from a bundled template (no app involved).
+
+        The app can't create one via nodeBuild: manual creation opens a modal save dialog.
+        """
+        node = json.loads(EXPORT_TEMPLATE.read_text(encoding="utf-8"))
+        node["id"] = "mcpexport" + uuid.uuid4().hex[:23]
+        node["iname"] = f"Export_{node['id'][-6:]}"
+        node["x"], node["y"] = x, y
+        node["inputs"][1]["r"]["d"] = path
+        self.data.setdefault("nodes", []).append(node)
+        return node["id"]
 
     def export_nodes(self) -> list[dict]:
         return [n for n in self.nodes() if n.get("type") == "Node_Export"]

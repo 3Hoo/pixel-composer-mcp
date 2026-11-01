@@ -8,3 +8,7 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Pixel Composer save backups and check_sheet previews
+*.pxc1
+*_contact.png
